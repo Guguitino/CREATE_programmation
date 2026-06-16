@@ -176,33 +176,29 @@ int main(void) {
 
 		/* USER CODE BEGIN 3 */
 
-		/* Menu */
-		/* print menu page 1 : ADC values and PWM output value */
-		// Acquire potentiometer value
-		uint32_t pot1_value = adc_buf[2];
-		uint32_t pot2_value = 0; //PC0
-		// Print potentiometer, rotary and switch values into strings
-		char title_str[20] = { 0 };
-		char line1_str[20] = { 0 };
-		char line2_str[20] = { 0 };
-		sprintf(line1_str, "P6:%04u   P2:%04u", (uint16_t) pot1_value,
-				(uint16_t) pot2_value);
-		sprintf(line2_str, "ROT:%03u", rotary_counter);
-//		// Update screen
-//		ssd1306_SetCursor(0, 0);
-//		ssd1306_WriteString(line1_str, Font_7x10, White);
-//		ssd1306_SetCursor(0, 11);
-//		ssd1306_WriteString(line2_str, Font_7x10, White);
-//		ssd1306_UpdateScreen();
+		//Acquire ADC values
+		uint32_t voltage_in = adc_buf[1];	//7
+		uint32_t voltage_out = adc_buf[2];	//6
+		uint32_t current = adc_buf[0];		//10
+
+		char line1_str[20] = {0};
+		char line2_str[20] = {0};
+		sprintf(line1_str, "Vi:%04u   Vo:%04u", (uint16_t)voltage_in, (uint16_t)voltage_out);
+		sprintf(line2_str, "Io:%04u", (uint16_t)current);
+
 
 		//State machine
+		ssd1306_Fill(Black);
+		char title_str[20] = {0};
 		switch (ecran) {
 		case 1:
-			sprintf(title_str, "Page 1");
+			sprintf(title_str, "Page 1 - ADC");
 			ssd1306_SetCursor(0, 0);
 			ssd1306_WriteString(title_str, Font_7x10, White);
 			ssd1306_SetCursor(0, 11);
 			ssd1306_WriteString(line1_str, Font_7x10, White);
+			ssd1306_SetCursor(0, 22);
+			ssd1306_WriteString(line2_str, Font_7x10, White);
 			ssd1306_UpdateScreen();
 			break;
 		case 2:
@@ -210,7 +206,7 @@ int main(void) {
 			ssd1306_SetCursor(0, 0);
 			ssd1306_WriteString(title_str, Font_7x10, White);
 			ssd1306_SetCursor(0, 11);
-			ssd1306_WriteString(line2_str, Font_7x10, White);
+			//ssd1306_WriteString(line2_str, Font_7x10, White);
 			ssd1306_UpdateScreen();
 			break;
 		case 3:
@@ -399,7 +395,7 @@ void Rotary_Encoder_Interrupt_Handler(void) {
 		}
 		rotary_state = rotary_new;
 		/* Filter rotation due to high number of positions */
-		if (rotary_buffer > 3) {
+		if (rotary_buffer > 2) {
 			rotary_counter++;
 			if (ecran < NB_ECRAN) {
 				ecran++;
@@ -410,7 +406,7 @@ void Rotary_Encoder_Interrupt_Handler(void) {
 			rotary_direction = DIRECTION_CW;
 			rotary_buffer = 0;
 		}
-		if (rotary_buffer < -3) {
+		if (rotary_buffer < -2) {
 			rotary_counter--;
 			rotary_direction = DIRECTION_CCW;
 			rotary_buffer = 0;
