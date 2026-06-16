@@ -72,6 +72,15 @@ static uint8_t ecran = 0;
 static bool btn = true;
 static bool prev_btn = true;
 
+
+uint32_t voltage_in_ADC = 0;
+uint32_t voltage_out_ADC = 0;
+uint32_t current_ADC = 0;
+
+double voltage_in = 0;
+double voltage_out = 0;
+double current = 0;
+
 uint16_t adc_buf[ADC_BUF_LEN];
 
 // Tramage (dithering)
@@ -84,13 +93,11 @@ uint8_t pwm_pulse = 0;
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-// State management
-void Set_Next_Mode(void);
-void Set_Previous_Mode(void);
+
 
 // Human interface
 void Update_Display(void);
-bool Button_Pushed();
+
 
 // USB Power Delivery requests
 uint8_t Read_USB_PDO(void);
@@ -189,21 +196,14 @@ int main(void) {
 		btn = HAL_GPIO_ReadPin(Button_GPIO_Port, Button_Pin);
 
 
-		//Acquire ADC values
-		uint32_t voltage_in_ADC = adc_buf[1];
-		uint32_t voltage_out_ADC = adc_buf[0];
-		uint32_t current_ADC = adc_buf[2];
-
-		//Etalonage et conversion
-		double voltage_in = ((double)voltage_in_ADC-62) / 134.4;
-		double voltage_out = ((double)voltage_out_ADC-62) / 134.4;
-		double current = current_ADC;
-
 
 		//Préparation affichages
 		char line1_str[20] = {0};
 		char line2_str[20] = {0};
 
+
+	// DONE
+	// 1.1 Menu et navigation
 
 		//State machine (Display)
 		ssd1306_Fill(Black);
@@ -284,8 +284,7 @@ int main(void) {
 		pwm_pulse = 128;//(uint8_t)((sin(2*3.14159*sinFrequency*time) + 1 )*127);
 		time+=0.025;
 
-		// TODO
-		// 1.1 Menu et navigation
+
 
 		// TODO
 		// 4.1 Lecture PDO et asservissement
@@ -405,9 +404,18 @@ int32_t Compute_control_input(int32_t yref, int32_t y) {
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 
-	// TODO
+	// DONE
 	// 2.1 Conversion Analogique-Numérique
+	//Acquire ADC values
+	voltage_in_ADC = adc_buf[1];
+	voltage_out_ADC = adc_buf[0];
+	current_ADC = adc_buf[2];
 	// 2.2 Etalonage
+	voltage_in = ((double)voltage_in_ADC-62) / 134.4;
+	voltage_out = ((double)voltage_out_ADC-62) / 134.4;
+	current = current_ADC;
+
+
 
 	// TODO
 	// 3.1 Gestion PWM
