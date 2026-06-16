@@ -241,7 +241,7 @@ int main(void) {
 			break;
 		case 12:
 			sprintf(title_str, "Page 2-3 ADC conv");
-			sprintf(line1_str, "Io:%04u (I)", (uint16_t)current);
+			sprintf(line1_str, "Io:%04u (A)", (uint16_t)current);
 			ssd1306_SetCursor(0, 0);
 			ssd1306_WriteString(title_str, Font_7x10, White);
 			ssd1306_SetCursor(0, 11);
