@@ -223,7 +223,7 @@ int main(void) {
 			break;
 		case 10:
 			sprintf(title_str, "Page 2-1 ADC conv");
-			sprintf(line1_str, "Vi:%.2f", (double)voltage_in);
+			sprintf(line1_str, "Vi:%.2f (V)", (double)voltage_in);
 			ssd1306_SetCursor(0, 0);
 			ssd1306_WriteString(title_str, Font_7x10, White);
 			ssd1306_SetCursor(0, 11);
@@ -231,8 +231,8 @@ int main(void) {
 			ssd1306_UpdateScreen();
 			break;
 		case 11:
-			sprintf(title_str, "Page 2-3 ADC conv");
-			sprintf(line1_str, "Io:%04u", (uint16_t)current);
+			sprintf(title_str, "Page 2-2 ADC conv");
+			sprintf(line1_str, "Vo:%.2f (V)", (double)voltage_out);
 			ssd1306_SetCursor(0, 0);
 			ssd1306_WriteString(title_str, Font_7x10, White);
 			ssd1306_SetCursor(0, 11);
@@ -240,14 +240,14 @@ int main(void) {
 			ssd1306_UpdateScreen();
 			break;
 		case 12:
-				sprintf(title_str, "Page 2-2 ADC conv");
-				sprintf(line1_str, "Vo:%.2f", (double)voltage_out);
-				ssd1306_SetCursor(0, 0);
-				ssd1306_WriteString(title_str, Font_7x10, White);
-				ssd1306_SetCursor(0, 11);
-				ssd1306_WriteString(line1_str, Font_7x10, White);
-				ssd1306_UpdateScreen();
-				break;
+			sprintf(title_str, "Page 2-3 ADC conv");
+			sprintf(line1_str, "Io:%04u (I)", (uint16_t)current);
+			ssd1306_SetCursor(0, 0);
+			ssd1306_WriteString(title_str, Font_7x10, White);
+			ssd1306_SetCursor(0, 11);
+			ssd1306_WriteString(line1_str, Font_7x10, White);
+			ssd1306_UpdateScreen();
+			break;
 		case 20:
 			sprintf(title_str, "Page 3");
 			ssd1306_SetCursor(0, 0);
@@ -258,20 +258,20 @@ int main(void) {
 			break;
 		}
 
-
+	//State machine actions
 	switch (ecran) {
 		case 10:
-			if(prev_btn != btn){
+			if(prev_btn < btn){
 				ecran++;
 			}
 			break;
 		case 11:
-			if(prev_btn != btn){
+			if(prev_btn < btn){
 				ecran++;
 			}
 			break;
 		case 12:
-			if(prev_btn != btn){
+			if(prev_btn < btn){
 				ecran = 10;
 			}
 			break;
