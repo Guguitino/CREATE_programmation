@@ -67,7 +67,10 @@ static uint8_t rotary_state;
 static uint8_t rotary_counter = 0;
 static int8_t rotary_direction = DIRECTION_NONE;
 
-static uint8_t ecran = 1;
+static uint8_t ecran = 0;
+
+static bool btn = true;
+static bool prev_btn = true;
 
 uint16_t adc_buf[ADC_BUF_LEN];
 
@@ -140,6 +143,8 @@ int main(void) {
 	MX_USART2_UART_Init();
 	MX_TIM2_Init();
 	MX_TIM22_Init();
+
+
 	/* USER CODE BEGIN 2 */
 
 	// Initialize screen
@@ -167,6 +172,9 @@ int main(void) {
 	double time = 0;
 	double sinFrequency = 1;
 
+	//Enable MP8040 pin PA10 (activation V sortie )
+	HAL_GPIO_WritePin(SHDN_GPIO_Port, SHDN_Pin, 0);
+
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -176,23 +184,35 @@ int main(void) {
 
 		/* USER CODE BEGIN 3 */
 
-		//Acquire ADC values
-		uint32_t voltage_in = adc_buf[1];	//7
-		uint32_t voltage_out = adc_buf[2];	//6
-		uint32_t current = adc_buf[0];		//10
+		//MàJ bouton
+		prev_btn = btn;
+		btn = HAL_GPIO_ReadPin(Button_GPIO_Port, Button_Pin);
 
+
+		//Acquire ADC values
+		uint32_t voltage_in_ADC = adc_buf[1];
+		uint32_t voltage_out_ADC = adc_buf[0];
+		uint32_t current_ADC = adc_buf[2];
+
+		//Etalonage et conversion
+		double voltage_in = ((double)voltage_in_ADC-62) / 134.4;
+		double voltage_out = ((double)voltage_out_ADC-62) / 134.4;
+		double current = current_ADC;
+
+
+		//Préparation affichages
 		char line1_str[20] = {0};
 		char line2_str[20] = {0};
-		sprintf(line1_str, "Vi:%04u   Vo:%04u", (uint16_t)voltage_in, (uint16_t)voltage_out);
-		sprintf(line2_str, "Io:%04u", (uint16_t)current);
 
 
-		//State machine
+		//State machine (Display)
 		ssd1306_Fill(Black);
 		char title_str[20] = {0};
 		switch (ecran) {
-		case 1:
+		case 0:
 			sprintf(title_str, "Page 1 - ADC");
+			sprintf(line1_str, "Vi:%04u   Vo:%04u", (uint16_t)voltage_in_ADC, (uint16_t)voltage_out_ADC);
+			sprintf(line2_str, "Io:%04u", (uint16_t)current_ADC);
 			ssd1306_SetCursor(0, 0);
 			ssd1306_WriteString(title_str, Font_7x10, White);
 			ssd1306_SetCursor(0, 11);
@@ -201,15 +221,34 @@ int main(void) {
 			ssd1306_WriteString(line2_str, Font_7x10, White);
 			ssd1306_UpdateScreen();
 			break;
-		case 2:
-			sprintf(title_str, "Page 2");
+		case 10:
+			sprintf(title_str, "Page 2-1 ADC conv");
+			sprintf(line1_str, "Vi:%.2f", (double)voltage_in);
 			ssd1306_SetCursor(0, 0);
 			ssd1306_WriteString(title_str, Font_7x10, White);
 			ssd1306_SetCursor(0, 11);
-			//ssd1306_WriteString(line2_str, Font_7x10, White);
+			ssd1306_WriteString(line1_str, Font_7x10, White);
 			ssd1306_UpdateScreen();
 			break;
-		case 3:
+		case 11:
+			sprintf(title_str, "Page 2-3 ADC conv");
+			sprintf(line1_str, "Io:%04u", (uint16_t)current);
+			ssd1306_SetCursor(0, 0);
+			ssd1306_WriteString(title_str, Font_7x10, White);
+			ssd1306_SetCursor(0, 11);
+			ssd1306_WriteString(line1_str, Font_7x10, White);
+			ssd1306_UpdateScreen();
+			break;
+		case 12:
+				sprintf(title_str, "Page 2-2 ADC conv");
+				sprintf(line1_str, "Vo:%.2f", (double)voltage_out);
+				ssd1306_SetCursor(0, 0);
+				ssd1306_WriteString(title_str, Font_7x10, White);
+				ssd1306_SetCursor(0, 11);
+				ssd1306_WriteString(line1_str, Font_7x10, White);
+				ssd1306_UpdateScreen();
+				break;
+		case 20:
 			sprintf(title_str, "Page 3");
 			ssd1306_SetCursor(0, 0);
 			ssd1306_WriteString(title_str, Font_7x10, White);
@@ -219,8 +258,30 @@ int main(void) {
 			break;
 		}
 
+
+	switch (ecran) {
+		case 10:
+			if(prev_btn != btn){
+				ecran++;
+			}
+			break;
+		case 11:
+			if(prev_btn != btn){
+				ecran++;
+			}
+			break;
+		case 12:
+			if(prev_btn != btn){
+				ecran = 10;
+			}
+			break;
+	}
+
+
+
+
 		/* Test PWM */
-		pwm_pulse = (uint8_t)sin(2*3.14159*sinFrequency*time) * 255;
+		pwm_pulse = 128;//(uint8_t)((sin(2*3.14159*sinFrequency*time) + 1 )*127);
 		time+=0.025;
 
 		// TODO
@@ -397,10 +458,10 @@ void Rotary_Encoder_Interrupt_Handler(void) {
 		/* Filter rotation due to high number of positions */
 		if (rotary_buffer > 2) {
 			rotary_counter++;
-			if (ecran < NB_ECRAN) {
-				ecran++;
+			if (ecran < (NB_ECRAN-1) * 10) {
+				ecran = (ecran/10 + 1)*10;
 			} else {
-				ecran = 1;
+				ecran = 0;
 			}
 
 			rotary_direction = DIRECTION_CW;
@@ -411,9 +472,9 @@ void Rotary_Encoder_Interrupt_Handler(void) {
 			rotary_direction = DIRECTION_CCW;
 			rotary_buffer = 0;
 			if (ecran > 0) {
-				ecran--;
+				ecran = (ecran/10 -1 )*10;
 			} else {
-				ecran = NB_ECRAN;
+				ecran = (NB_ECRAN-1) * 10;
 			}
 		}
 
