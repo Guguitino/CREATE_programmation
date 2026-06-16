@@ -47,6 +47,9 @@
 #define PWM_HALFBUFFER_SIZE 16
 #define DITHER_RES 8
 
+#define COR_VMI_BUFFER_SIZE 3
+#define COR_PWM_PULSE_BUFFER_SIZE 3
+
 #define NB_ECRAN 3
 
 enum rotary_direction {
@@ -72,7 +75,6 @@ static uint8_t ecran = 0;
 static bool btn = true;
 static bool prev_btn = true;
 
-
 uint32_t voltage_in_ADC = 0;
 uint32_t voltage_out_ADC = 0;
 uint32_t current_ADC = 0;
@@ -82,6 +84,10 @@ double voltage_out = 0;
 double current = 0;
 
 uint16_t adc_buf[ADC_BUF_LEN];
+double cor_VMI[COR_VMI_BUFFER_SIZE];
+double cor_PWM_pulse[COR_VMI_BUFFER_SIZE];
+
+
 
 // Tramage (dithering)
 uint16_t pwm_buffer[PWM_BUFFER_SIZE];
@@ -93,11 +99,8 @@ uint8_t pwm_pulse = 0;
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-
-
 // Human interface
 void Update_Display(void);
-
 
 // USB Power Delivery requests
 uint8_t Read_USB_PDO(void);
@@ -151,7 +154,6 @@ int main(void) {
 	MX_TIM2_Init();
 	MX_TIM22_Init();
 
-
 	/* USER CODE BEGIN 2 */
 
 	// Initialize screen
@@ -165,7 +167,7 @@ int main(void) {
 
 	// Start PWM timer
 	HAL_TIM_PWM_Start_DMA(&htim2, TIM_CHANNEL_2, (uint32_t*) pwm_buffer,
-			PWM_BUFFER_SIZE);
+	PWM_BUFFER_SIZE);
 
 	// Start main timer
 	htim2.hdma[TIM_DMA_ID_CC2]->XferCpltCallback = TransferComplete;
@@ -195,94 +197,47 @@ int main(void) {
 		prev_btn = btn;
 		btn = HAL_GPIO_ReadPin(Button_GPIO_Port, Button_Pin);
 
-
-
-		//Préparation affichages
-		char line1_str[20] = {0};
-		char line2_str[20] = {0};
-
-
-	// DONE
-	// 1.1 Menu et navigation
-
-		//State machine (Display)
-		ssd1306_Fill(Black);
-		char title_str[20] = {0};
-		switch (ecran) {
-		case 0:
-			sprintf(title_str, "Page 1 - ADC");
-			sprintf(line1_str, "Vi:%04u   Vo:%04u", (uint16_t)voltage_in_ADC, (uint16_t)voltage_out_ADC);
-			sprintf(line2_str, "Io:%04u", (uint16_t)current_ADC);
-			ssd1306_SetCursor(0, 0);
-			ssd1306_WriteString(title_str, Font_7x10, White);
-			ssd1306_SetCursor(0, 11);
-			ssd1306_WriteString(line1_str, Font_7x10, White);
-			ssd1306_SetCursor(0, 22);
-			ssd1306_WriteString(line2_str, Font_7x10, White);
-			ssd1306_UpdateScreen();
-			break;
-		case 10:
-			sprintf(title_str, "Page 2-1 ADC conv");
-			sprintf(line1_str, "Vi:%.2f (V)", (double)voltage_in);
-			ssd1306_SetCursor(0, 0);
-			ssd1306_WriteString(title_str, Font_7x10, White);
-			ssd1306_SetCursor(0, 11);
-			ssd1306_WriteString(line1_str, Font_7x10, White);
-			ssd1306_UpdateScreen();
-			break;
-		case 11:
-			sprintf(title_str, "Page 2-2 ADC conv");
-			sprintf(line1_str, "Vo:%.2f (V)", (double)voltage_out);
-			ssd1306_SetCursor(0, 0);
-			ssd1306_WriteString(title_str, Font_7x10, White);
-			ssd1306_SetCursor(0, 11);
-			ssd1306_WriteString(line1_str, Font_7x10, White);
-			ssd1306_UpdateScreen();
-			break;
-		case 12:
-			sprintf(title_str, "Page 2-3 ADC conv");
-			sprintf(line1_str, "Io:%04u (A)", (uint16_t)current);
-			ssd1306_SetCursor(0, 0);
-			ssd1306_WriteString(title_str, Font_7x10, White);
-			ssd1306_SetCursor(0, 11);
-			ssd1306_WriteString(line1_str, Font_7x10, White);
-			ssd1306_UpdateScreen();
-			break;
-		case 20:
-			sprintf(title_str, "Page 3");
-			ssd1306_SetCursor(0, 0);
-			ssd1306_WriteString(title_str, Font_7x10, White);
-			ssd1306_SetCursor(0, 11);
-			ssd1306_WriteString(line2_str, Font_7x10, White);
-			ssd1306_UpdateScreen();
-			break;
-		}
-
-	//State machine actions
-	switch (ecran) {
-		case 10:
-			if(prev_btn < btn){
-				ecran++;
-			}
-			break;
-		case 11:
-			if(prev_btn < btn){
-				ecran++;
-			}
-			break;
-		case 12:
-			if(prev_btn < btn){
-				ecran = 10;
-			}
-			break;
-	}
-
-
-
+		// 1.1 Menu et navigation
+		Update_Display();
 
 		/* Test PWM */
-		pwm_pulse = 128;//(uint8_t)((sin(2*3.14159*sinFrequency*time) + 1 )*127);
-		time+=0.025;
+		pwm_pulse = 128; //(uint8_t)((sin(2*3.14159*sinFrequency*time) + 1 )*127);
+		time += 0.025;
+
+		/* Reading PDOs TOR inputs
+		 * Code :
+		 *  PDO = 0x000ABCD
+		 *  A = PDO2
+		 *  B = PDO3
+		 *  C = PDO4
+		 *  D = PDO5
+		 */
+		uint8_t PDO2 = HAL_GPIO_ReadPin(PDO2_GPIO_Port, PDO2_Pin);
+		uint8_t PDO3 = HAL_GPIO_ReadPin(PDO3_GPIO_Port, PDO3_Pin);
+		uint8_t PDO4 = HAL_GPIO_ReadPin(PDO4_GPIO_Port, PDO4_Pin);
+		uint8_t PDO5 = HAL_GPIO_ReadPin(PDO5_GPIO_Port, PDO5_Pin);
+		uint8_t PDO = (PDO5 << 3) | (PDO4 << 2) | (PDO3 << 1) | PDO2;
+		/* Decoding PDOs
+		 *  PDO2 = 5V
+		 *  PDO3 = 9V
+		 *  PDO4 = 12V
+		 *  PDO5 = 15V
+		 */
+		double Vref = 0;
+		switch (PDO) {
+		case 0b00001110:
+			Vref = 5;
+			break;
+		case 0b00001101:
+			Vref = 9;
+			break;
+		case 0b00001011:
+			Vref = 12;
+			break;
+		case 0b00000111:
+			Vref = 15;
+			break;
+		}
 
 
 
@@ -411,11 +366,9 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	voltage_out_ADC = adc_buf[0];
 	current_ADC = adc_buf[2];
 	// 2.2 Etalonage
-	voltage_in = ((double)voltage_in_ADC-62) / 134.4;
-	voltage_out = ((double)voltage_out_ADC-62) / 134.4;
+	voltage_in = ((double) voltage_in_ADC - 62) / 134.4;
+	voltage_out = ((double) voltage_out_ADC - 62) / 134.4;
 	current = current_ADC;
-
-
 
 	// TODO
 	// 3.1 Gestion PWM
@@ -466,8 +419,8 @@ void Rotary_Encoder_Interrupt_Handler(void) {
 		/* Filter rotation due to high number of positions */
 		if (rotary_buffer > 2) {
 			rotary_counter++;
-			if (ecran < (NB_ECRAN-1) * 10) {
-				ecran = (ecran/10 + 1)*10;
+			if (ecran < (NB_ECRAN - 1) * 10) {
+				ecran = (ecran / 10 + 1) * 10;
 			} else {
 				ecran = 0;
 			}
@@ -480,12 +433,91 @@ void Rotary_Encoder_Interrupt_Handler(void) {
 			rotary_direction = DIRECTION_CCW;
 			rotary_buffer = 0;
 			if (ecran > 0) {
-				ecran = (ecran/10 -1 )*10;
+				ecran = (ecran / 10 - 1) * 10;
 			} else {
-				ecran = (NB_ECRAN-1) * 10;
+				ecran = (NB_ECRAN - 1) * 10;
 			}
 		}
 
+	}
+}
+
+void Update_Display(void) {
+	//Préparation affichages
+	char line1_str[20] = { 0 };
+	char line2_str[20] = { 0 };
+
+	//State machine (Display)
+	ssd1306_Fill(Black);
+	char title_str[20] = { 0 };
+	switch (ecran) {
+	case 0:
+		sprintf(title_str, "Page 1 - ADC");
+		sprintf(line1_str, "Vi:%04u   Vo:%04u", (uint16_t) voltage_in_ADC,
+				(uint16_t) voltage_out_ADC);
+		sprintf(line2_str, "Io:%04u", (uint16_t) current_ADC);
+		ssd1306_SetCursor(0, 0);
+		ssd1306_WriteString(title_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 11);
+		ssd1306_WriteString(line1_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 22);
+		ssd1306_WriteString(line2_str, Font_7x10, White);
+		ssd1306_UpdateScreen();
+		break;
+	case 10:
+		sprintf(title_str, "Page 2-1 ADC conv");
+		sprintf(line1_str, "Vi:%.2f (V)", (double) voltage_in);
+		ssd1306_SetCursor(0, 0);
+		ssd1306_WriteString(title_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 11);
+		ssd1306_WriteString(line1_str, Font_7x10, White);
+		ssd1306_UpdateScreen();
+		break;
+	case 11:
+		sprintf(title_str, "Page 2-2 ADC conv");
+		sprintf(line1_str, "Vo:%.2f (V)", (double) voltage_out);
+		ssd1306_SetCursor(0, 0);
+		ssd1306_WriteString(title_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 11);
+		ssd1306_WriteString(line1_str, Font_7x10, White);
+		ssd1306_UpdateScreen();
+		break;
+	case 12:
+		sprintf(title_str, "Page 2-3 ADC conv");
+		sprintf(line1_str, "Io:%04u (A)", (uint16_t) current);
+		ssd1306_SetCursor(0, 0);
+		ssd1306_WriteString(title_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 11);
+		ssd1306_WriteString(line1_str, Font_7x10, White);
+		ssd1306_UpdateScreen();
+		break;
+	case 20:
+		sprintf(title_str, "Page 3");
+		ssd1306_SetCursor(0, 0);
+		ssd1306_WriteString(title_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 11);
+		ssd1306_WriteString(line2_str, Font_7x10, White);
+		ssd1306_UpdateScreen();
+		break;
+	}
+
+	//State machine actions
+	switch (ecran) {
+	case 10:
+		if (prev_btn < btn) {
+			ecran++;
+		}
+		break;
+	case 11:
+		if (prev_btn < btn) {
+			ecran++;
+		}
+		break;
+	case 12:
+		if (prev_btn < btn) {
+			ecran = 10;
+		}
+		break;
 	}
 }
 
