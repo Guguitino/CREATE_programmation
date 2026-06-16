@@ -30,6 +30,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <math.h>
 #include "ssd1306/ssd1306.h"
 /* USER CODE END Includes */
 
@@ -162,6 +163,10 @@ int main(void) {
 	// Switch off user LED
 	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
 
+	/* Test PWM */
+	double time = 0;
+	double sinFrequency = 1;
+
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -171,7 +176,7 @@ int main(void) {
 
 		/* USER CODE BEGIN 3 */
 
-		/* Test PWM and ADC */
+		/* Menu */
 		/* print menu page 1 : ADC values and PWM output value */
 		// Acquire potentiometer value
 		uint32_t pot1_value = adc_buf[2];
@@ -212,9 +217,15 @@ int main(void) {
 			sprintf(title_str, "Page 3");
 			ssd1306_SetCursor(0, 0);
 			ssd1306_WriteString(title_str, Font_7x10, White);
+			ssd1306_SetCursor(0, 11);
+			ssd1306_WriteString(line2_str, Font_7x10, White);
 			ssd1306_UpdateScreen();
 			break;
 		}
+
+		/* Test PWM */
+		pwm_pulse = (uint8_t)sin(2*3.14159*sinFrequency*time) * 255;
+		time+=0.025;
 
 		// TODO
 		// 1.1 Menu et navigation
