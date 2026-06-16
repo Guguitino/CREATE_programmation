@@ -46,11 +46,10 @@
 #define PWM_HALFBUFFER_SIZE 16
 #define DITHER_RES 8
 
+#define NB_ECRAN 3
+
 enum rotary_direction {
-	DIRECTION_NONE,
-	DIRECTION_CW,
-	DIRECTION_CCW,
-	NUM_OF_DIRECTIONS
+	DIRECTION_NONE, DIRECTION_CW, DIRECTION_CCW, NUM_OF_DIRECTIONS
 };
 
 /* USER CODE END PD */
@@ -66,6 +65,8 @@ enum rotary_direction {
 static uint8_t rotary_state;
 static uint8_t rotary_counter = 0;
 static int8_t rotary_direction = DIRECTION_NONE;
+
+static uint8_t ecran = 1;
 
 uint16_t adc_buf[ADC_BUF_LEN];
 
@@ -105,52 +106,53 @@ void TransferHalfComplete(DMA_HandleTypeDef *hdma);
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
+ * @brief  The application entry point.
+ * @retval int
+ */
+int main(void) {
 
-  /* USER CODE BEGIN 1 */
+	/* USER CODE BEGIN 1 */
 
-  /* USER CODE END 1 */
+	/* USER CODE END 1 */
 
-  /* MCU Configuration--------------------------------------------------------*/
+	/* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
 
-  /* USER CODE BEGIN Init */
+	/* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+	/* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	/* Configure the system clock */
+	SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+	/* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+	/* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_ADC_Init();
-  MX_I2C1_Init();
-  MX_USART2_UART_Init();
-  MX_TIM2_Init();
-  MX_TIM22_Init();
-  /* USER CODE BEGIN 2 */
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_DMA_Init();
+	MX_ADC_Init();
+	MX_I2C1_Init();
+	MX_USART2_UART_Init();
+	MX_TIM2_Init();
+	MX_TIM22_Init();
+	/* USER CODE BEGIN 2 */
 
 	// Initialize screen
 	ssd1306_Init();
 	ssd1306_Fill(Black);
 	ssd1306_UpdateScreen();
 
-	//  HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_3);
+	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+
 	HAL_ADC_Start_DMA(&hadc, (uint32_t*) adc_buf, ADC_BUF_LEN);
 
 	// Start PWM timer
-	HAL_TIM_PWM_Start_DMA(&htim2, TIM_CHANNEL_2, (uint32_t*) pwm_buffer, PWM_BUFFER_SIZE);
+	HAL_TIM_PWM_Start_DMA(&htim2, TIM_CHANNEL_2, (uint32_t*) pwm_buffer,
+			PWM_BUFFER_SIZE);
 
 	// Start main timer
 	htim2.hdma[TIM_DMA_ID_CC2]->XferCpltCallback = TransferComplete;
@@ -160,15 +162,59 @@ int main(void)
 	// Switch off user LED
 	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
 
-  /* USER CODE END 2 */
+	/* USER CODE END 2 */
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-	while (1)
-	{
-    /* USER CODE END WHILE */
+	/* Infinite loop */
+	/* USER CODE BEGIN WHILE */
+	while (1) {
+		/* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+		/* USER CODE BEGIN 3 */
+
+		/* Test PWM and ADC */
+		/* print menu page 1 : ADC values and PWM output value */
+		// Acquire potentiometer value
+		uint32_t pot1_value = adc_buf[2];
+		uint32_t pot2_value = 0; //PC0
+		// Print potentiometer, rotary and switch values into strings
+		char title_str[20] = { 0 };
+		char line1_str[20] = { 0 };
+		char line2_str[20] = { 0 };
+		sprintf(line1_str, "P6:%04u   P2:%04u", (uint16_t) pot1_value,
+				(uint16_t) pot2_value);
+		sprintf(line2_str, "ROT:%03u", rotary_counter);
+//		// Update screen
+//		ssd1306_SetCursor(0, 0);
+//		ssd1306_WriteString(line1_str, Font_7x10, White);
+//		ssd1306_SetCursor(0, 11);
+//		ssd1306_WriteString(line2_str, Font_7x10, White);
+//		ssd1306_UpdateScreen();
+
+		//State machine
+		switch (ecran) {
+		case 1:
+			sprintf(title_str, "Page 1");
+			ssd1306_SetCursor(0, 0);
+			ssd1306_WriteString(title_str, Font_7x10, White);
+			ssd1306_SetCursor(0, 11);
+			ssd1306_WriteString(line1_str, Font_7x10, White);
+			ssd1306_UpdateScreen();
+			break;
+		case 2:
+			sprintf(title_str, "Page 2");
+			ssd1306_SetCursor(0, 0);
+			ssd1306_WriteString(title_str, Font_7x10, White);
+			ssd1306_SetCursor(0, 11);
+			ssd1306_WriteString(line2_str, Font_7x10, White);
+			ssd1306_UpdateScreen();
+			break;
+		case 3:
+			sprintf(title_str, "Page 3");
+			ssd1306_SetCursor(0, 0);
+			ssd1306_WriteString(title_str, Font_7x10, White);
+			ssd1306_UpdateScreen();
+			break;
+		}
 
 		// TODO
 		// 1.1 Menu et navigation
@@ -182,88 +228,79 @@ int main(void)
 		// Delay
 		HAL_Delay(25);
 	}
-  /* USER CODE END 3 */
+	/* USER CODE END 3 */
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
-void SystemClock_Config(void)
-{
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+ * @brief System Clock Configuration
+ * @retval None
+ */
+void SystemClock_Config(void) {
+	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+	RCC_PeriphCLKInitTypeDef PeriphClkInit = { 0 };
 
-  /** Configure the main internal regulator output voltage
-  */
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+	/** Configure the main internal regulator output voltage
+	 */
+	__HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLLMUL_4;
-  RCC_OscInitStruct.PLL.PLLDIV = RCC_PLLDIV_2;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	/** Initializes the RCC Oscillators according to the specified parameters
+	 * in the RCC_OscInitTypeDef structure.
+	 */
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+	RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLLMUL_4;
+	RCC_OscInitStruct.PLL.PLLDIV = RCC_PLLDIV_2;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+		Error_Handler();
+	}
 
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+	/** Initializes the CPU, AHB and APB buses clocks
+	 */
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART2|RCC_PERIPHCLK_I2C1;
-  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
-  PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK) {
+		Error_Handler();
+	}
+	PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART2
+			| RCC_PERIPHCLK_I2C1;
+	PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
+	PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
+	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
+		Error_Handler();
+	}
 }
 
 /* USER CODE BEGIN 4 */
 
 /*** IHM ***/
 
-
 /*** USB Power Delivery Objects ***/
 
-
-void Test_STUSB_I2C(void)
-{
+void Test_STUSB_I2C(void) {
 	char msg[60];
 	uint8_t id;
 	// Device I2C address : 0x28
 	// Device ID register : 0x2F
-	int ret = HAL_I2C_Mem_Read(&hi2c1, (0x28 << 1), 0x70, 1, &id, 1, 0xFFFFFFFF);
-	if (ret == HAL_OK)
-	{
+	int ret = HAL_I2C_Mem_Read(&hi2c1, (0x28 << 1), 0x70, 1, &id, 1,
+			0xFFFFFFFF);
+	if (ret == HAL_OK) {
 		sprintf(msg, "STUSB I2C test success\r\n");
-	}
-	else
-	{
+	} else {
 		sprintf(msg, "STUSB I2C test error %d\r\n", ret);
 	}
-	HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+	HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), HAL_MAX_DELAY);
 }
 
-void Set_STUSB_Available_Profiles(uint8_t num_profiles)
-{
+void Set_STUSB_Available_Profiles(uint8_t num_profiles) {
 	// TODO
 	// 4.3 Programmation PDOs
 
@@ -288,8 +325,7 @@ void Set_STUSB_Available_Profiles(uint8_t num_profiles)
 
 /*** Voltage controller ***/
 
-int32_t Compute_control_input(int32_t yref, int32_t y)
-{
+int32_t Compute_control_input(int32_t yref, int32_t y) {
 	// TODO
 	// 3.2 Régulation
 	return 0;
@@ -299,8 +335,7 @@ int32_t Compute_control_input(int32_t yref, int32_t y)
  * INTERRUPTS
  *******************************************************************/
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
-{
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 
 	// TODO
 	// 2.1 Conversion Analogique-Numérique
@@ -314,74 +349,83 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 
 }
 
-void TransferComplete(DMA_HandleTypeDef *hdma)
-{
+void TransferComplete(DMA_HandleTypeDef *hdma) {
 	//TODO
 	// 3.3 Filtrage sortie
 
-	for(int i=0;i<PWM_HALFBUFFER_SIZE;i++)
-	{
-		pwm_buffer[i+PWM_HALFBUFFER_SIZE] = pwm_pulse;
+	for (int i = 0; i < PWM_HALFBUFFER_SIZE; i++) {
+		pwm_buffer[i + PWM_HALFBUFFER_SIZE] = pwm_pulse;
 	}
 }
 
-void TransferHalfComplete(DMA_HandleTypeDef *hdma)
-{
+void TransferHalfComplete(DMA_HandleTypeDef *hdma) {
 	//TODO
 	// 3.3 Filtrage sortie
 
-	for(int i=0;i<PWM_HALFBUFFER_SIZE;i++)
-	{
-		pwm_buffer[i] =  pwm_pulse;
+	for (int i = 0; i < PWM_HALFBUFFER_SIZE; i++) {
+		pwm_buffer[i] = pwm_pulse;
 
 	}
 }
 
-void Rotary_Encoder_Interrupt_Handler(void)
-{
+void Rotary_Encoder_Interrupt_Handler(void) {
 	static int8_t rotary_buffer = 0;
 	/* Check for rotary encoder turned clockwise or counter-clockwise */
 	uint8_t rotary_new = HAL_GPIO_ReadPin(ROT_CHA_GPIO_Port, ROT_CHA_Pin) << 1;
 	rotary_new += HAL_GPIO_ReadPin(ROT_CHB_GPIO_Port, ROT_CHB_Pin);
 	if (rotary_new != rotary_state) {
-		if (((rotary_state == 0b00) && (rotary_new == 0b10)) || ((rotary_state == 0b10) && (rotary_new == 0b11)) ||
-				((rotary_state == 0b11) && (rotary_new == 0b01)) || ((rotary_state == 0b01) && (rotary_new == 0b00))) {
-			rotary_buffer ++;
+		if (((rotary_state == 0b00) && (rotary_new == 0b10))
+				|| ((rotary_state == 0b10) && (rotary_new == 0b11))
+				|| ((rotary_state == 0b11) && (rotary_new == 0b01))
+				|| ((rotary_state == 0b01) && (rotary_new == 0b00))) {
+			rotary_buffer++;
 		}
-		if (((rotary_state == 0b00) && (rotary_new == 0b01)) || ((rotary_state == 0b01) && (rotary_new == 0b11)) ||
-				((rotary_state == 0b11) && (rotary_new == 0b10)) || ((rotary_state == 0b10) && (rotary_new == 0b00))) {
-			rotary_buffer --;
+		if (((rotary_state == 0b00) && (rotary_new == 0b01))
+				|| ((rotary_state == 0b01) && (rotary_new == 0b11))
+				|| ((rotary_state == 0b11) && (rotary_new == 0b10))
+				|| ((rotary_state == 0b10) && (rotary_new == 0b00))) {
+			rotary_buffer--;
 		}
 		rotary_state = rotary_new;
 		/* Filter rotation due to high number of positions */
 		if (rotary_buffer > 3) {
-			rotary_counter ++;
+			rotary_counter++;
+			if (ecran < NB_ECRAN) {
+				ecran++;
+			} else {
+				ecran = 1;
+			}
+
 			rotary_direction = DIRECTION_CW;
 			rotary_buffer = 0;
 		}
 		if (rotary_buffer < -3) {
-			rotary_counter --;
+			rotary_counter--;
 			rotary_direction = DIRECTION_CCW;
 			rotary_buffer = 0;
+			if (ecran > 0) {
+				ecran--;
+			} else {
+				ecran = NB_ECRAN;
+			}
 		}
+
 	}
 }
 
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
-void Error_Handler(void)
-{
-  /* USER CODE BEGIN Error_Handler_Debug */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
+void Error_Handler(void) {
+	/* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
 	__disable_irq();
-	while (1)
-	{
+	while (1) {
 	}
-  /* USER CODE END Error_Handler_Debug */
+	/* USER CODE END Error_Handler_Debug */
 }
 #ifdef USE_FULL_ASSERT
 /**
