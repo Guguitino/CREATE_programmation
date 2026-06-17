@@ -55,8 +55,9 @@
 #define COR_VREFPRIME_BUFFER_SIZE 3
 #define COR_EPSILON_BUFFER_SIZE 3
 
-#define NB_ECRAN 3
+#define NB_ECRAN 4
 
+#define SCALE 65536
 enum rotary_direction {
 	DIRECTION_NONE, DIRECTION_CW, DIRECTION_CCW, NUM_OF_DIRECTIONS
 };
@@ -448,14 +449,14 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	// 2.2 Etalonage
 	voltage_in = ((float) voltage_in_ADC - 62) / 134.4;
 	voltage_out = ((float) voltage_out_ADC - 62) / 134.4;
-	current = ((float)current_ADC*-0.0032)+13.104;
+	current = ((float)current_ADC*-0.0032)+13.105;
 
 
 	// TODO
 	// 3.1 Gestion PWM
 	//ComputeControle = 1;
 	//uint32_t controle = Compute_control_input(voltage_ref, voltage_out);
-	pwm_pulse = (uint8_t) controle;
+	pwm_pulse = (uint8_t)(voltage_ref/voltage_in*255.0);//(uint8_t) controle;
 	// TODO
 	// 4.2 Protection
 
@@ -567,7 +568,7 @@ void Update_Display(void) {
 		break;
 	case 12:
 		sprintf(title_str, "Page 2-3 ADC conv");
-		sprintf(line1_str, "Io:%04u (A)", (uint16_t) current);
+		sprintf(line1_str, "Io:%.2f (A)", current);
 		ssd1306_SetCursor(0, 0);
 		ssd1306_WriteString(title_str, Font_7x10, White);
 		ssd1306_SetCursor(0, 11);
@@ -582,6 +583,18 @@ void Update_Display(void) {
 			sprintf(line1_str, "Fonctionnement:BO");
 		}
 		sprintf(line2_str, "Push to switch");
+		ssd1306_SetCursor(0, 0);
+		ssd1306_WriteString(title_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 11);
+		ssd1306_WriteString(line1_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 22);
+		ssd1306_WriteString(line2_str, Font_7x10, White);
+		ssd1306_UpdateScreen();
+		break;
+	case 30:
+		sprintf(title_str, "Page 4 - Puissance");
+		sprintf(line1_str, "P:%.2f (W)", (float) power);
+		sprintf(line2_str, "E:%.2f (J)", (float) energy);
 		ssd1306_SetCursor(0, 0);
 		ssd1306_WriteString(title_str, Font_7x10, White);
 		ssd1306_SetCursor(0, 11);
