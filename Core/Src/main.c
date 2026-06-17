@@ -55,8 +55,9 @@
 #define COR_VREFPRIME_BUFFER_SIZE 3
 #define COR_EPSILON_BUFFER_SIZE 3
 
-#define NB_ECRAN 3
+#define NB_ECRAN 4
 
+#define SCALE 65536
 enum rotary_direction {
 	DIRECTION_NONE, DIRECTION_CW, DIRECTION_CCW, NUM_OF_DIRECTIONS
 };
@@ -87,7 +88,9 @@ uint32_t current_ADC = 0;
 float voltage_in = 0;
 float voltage_out = 0;
 float current = 0;
-uint32_t voltage_ref = 0;
+float voltage_ref = 0;
+float power = 0;
+float energy = 0;
 
 uint16_t adc_buf[ADC_BUF_LEN];
 
@@ -284,6 +287,9 @@ int main(void) {
 		// 4.1 Lecture PDO et asservissement
 		// TODO
 		// 2.3 Calcul énergie et Puissance
+		power = voltage_out * current;//(W)
+		energy = power * 0.025;		//(J)
+
 		// Delay
 		HAL_Delay(25);
 	}
@@ -455,10 +461,12 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	voltage_in_ADC = adc_buf[1];
 	voltage_out_ADC = adc_buf[0];
 	current_ADC = adc_buf[2];
+
 	// 2.2 Etalonage
 	voltage_in = ((float) voltage_in_ADC - 62) / 134.4;
 	voltage_out = ((float) voltage_out_ADC - 62) / 134.4;
-	current = current_ADC;
+	current = ((float)current_ADC*-0.0032)+13.105;
+
 
 	// TODO
 	// 3.1 Gestion PWM
@@ -575,7 +583,7 @@ void Update_Display(void) {
 		break;
 	case 12:
 		sprintf(title_str, "Page 2-3 ADC conv");
-		sprintf(line1_str, "Io:%04u (A)", (uint16_t) current);
+		sprintf(line1_str, "Io:%.2f (A)", current);
 		ssd1306_SetCursor(0, 0);
 		ssd1306_WriteString(title_str, Font_7x10, White);
 		ssd1306_SetCursor(0, 11);
@@ -591,9 +599,29 @@ void Update_Display(void) {
 			sprintf(line1_str, "Fonctionnement:BO");
 		}
 		sprintf(line2_str, "Switch by pushing");
+		if (BoucleFermee) {
+			sprintf(line1_str, "Fonctionnement:BF");
+		} else {
+			sprintf(line1_str, "Fonctionnement:BO");
+		}
+		sprintf(line2_str, "Push to switch");
 		ssd1306_SetCursor(0, 0);
 		ssd1306_WriteString(title_str, Font_7x10, White);
 		ssd1306_SetCursor(0, 11);
+		ssd1306_WriteString(line1_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 22);
+		ssd1306_WriteString(line2_str, Font_7x10, White);
+		ssd1306_UpdateScreen();
+		break;
+	case 30:
+		sprintf(title_str, "Page 4 - Puissance");
+		sprintf(line1_str, "P:%.2f (W)", (float) power);
+		sprintf(line2_str, "E:%.2f (J)", (float) energy);
+		ssd1306_SetCursor(0, 0);
+		ssd1306_WriteString(title_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 11);
+		ssd1306_WriteString(line1_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 22);
 		ssd1306_WriteString(line1_str, Font_7x10, White);
 		ssd1306_SetCursor(0, 22);
 		ssd1306_WriteString(line2_str, Font_7x10, White);
