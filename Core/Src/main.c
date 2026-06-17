@@ -88,6 +88,8 @@ float voltage_in = 0;
 float voltage_out = 0;
 float current = 0;
 float voltage_ref = 0;
+float power = 0;
+float energy = 0;
 
 uint16_t adc_buf[ADC_BUF_LEN];
 
@@ -278,6 +280,8 @@ int main(void) {
 
 		// TODO
 		// 2.3 Calcul énergie et Puissance
+		power = voltage_out * current;//(W)
+		energy = power * 0.025;		//(J)
 
 		// Delay
 		HAL_Delay(25);
@@ -437,15 +441,17 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	voltage_in_ADC = adc_buf[1];
 	voltage_out_ADC = adc_buf[0];
 	current_ADC = adc_buf[2];
+
 	// 2.2 Etalonage
 	voltage_in = ((float) voltage_in_ADC - 62) / 134.4;
 	voltage_out = ((float) voltage_out_ADC - 62) / 134.4;
-	current = current_ADC;
+	current = ((float)current_ADC*-0.0032)+13.104;
+
 
 	// TODO
 	// 3.1 Gestion PWM
 	//ComputeControle = 1;
-	uint32_t controle = Compute_control_input(voltage_ref, voltage_out);
+	//uint32_t controle = Compute_control_input(voltage_ref, voltage_out);
 	pwm_pulse = (uint8_t) controle;
 	// TODO
 	// 4.2 Protection
