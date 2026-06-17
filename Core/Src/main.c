@@ -47,8 +47,13 @@
 #define PWM_HALFBUFFER_SIZE 16
 #define DITHER_RES 8
 
+#define COR_ALPHA_BUFFER_SIZE 3
+#define COR_VMES_BUFFER_SIZE 3
 #define COR_VMI_BUFFER_SIZE 3
-#define COR_PWM_PULSE_BUFFER_SIZE 3
+#define COR_VREF_BUFFER_SIZE 3
+#define COR_VCONTRE_BUFFER_SIZE 3
+#define COR_VREFPRIME_BUFFER_SIZE 3
+#define COR_EPSILON_BUFFER_SIZE 3
 
 #define NB_ECRAN 3
 
@@ -79,15 +84,25 @@ uint32_t voltage_in_ADC = 0;
 uint32_t voltage_out_ADC = 0;
 uint32_t current_ADC = 0;
 
-double voltage_in = 0;
-double voltage_out = 0;
-double current = 0;
+float voltage_in = 0;
+float voltage_out = 0;
+float current = 0;
+float voltage_ref = 0;
 
 uint16_t adc_buf[ADC_BUF_LEN];
-double cor_VMI[COR_VMI_BUFFER_SIZE];
-double cor_PWM_pulse[COR_VMI_BUFFER_SIZE];
 
+float corAlpha[COR_ALPHA_BUFFER_SIZE];
+float corVref[COR_VMES_BUFFER_SIZE];
+float corVmi[COR_VMI_BUFFER_SIZE];
+float corVmes[COR_VREF_BUFFER_SIZE];
+float corVcontre[COR_VCONTRE_BUFFER_SIZE];
+float corVrefprime[COR_VREFPRIME_BUFFER_SIZE];
+float corEpsilon[COR_EPSILON_BUFFER_SIZE];
 
+float Hz[] = { 0, 35.28, 18.32, 0.9834, 0.2503 };
+float Gz[] = { 0.09683, 0.07675, 0, -1.326, 0.4996 };
+float Fz[] = { 1.284, 0.5245, 0, 0.6743, 0.1345 };
+float Cz[] = { 0.01865, 0.01834, 0.004668, 0, 0 };
 
 // Tramage (dithering)
 uint16_t pwm_buffer[PWM_BUFFER_SIZE];
@@ -108,7 +123,7 @@ void Test_STUSB_I2C(void);
 void Set_STUSB_Available_Profiles(uint8_t num_profiles);
 
 // Voltage controller
-int32_t Compute_control_input(int32_t y_setpoint, int32_t y_value);
+int32_t Compute_control_input(int32_t Vref, int32_t Vmes);
 void TransferComplete(DMA_HandleTypeDef *hdma);
 void TransferHalfComplete(DMA_HandleTypeDef *hdma);
 
@@ -177,12 +192,32 @@ int main(void) {
 	// Switch off user LED
 	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
 
-	/* Test PWM */
-	double time = 0;
-	double sinFrequency = 1;
-
 	//Enable MP8040 pin PA10 (activation V sortie )
 	HAL_GPIO_WritePin(SHDN_GPIO_Port, SHDN_Pin, 0);
+
+	for (int i = 0; i < COR_ALPHA_BUFFER_SIZE; i++) {
+		corAlpha[i] = 0;
+	}
+	for (int i = 0; i < COR_VREF_BUFFER_SIZE; i++) {
+		corVref[i] = 0;
+	}
+
+	for (int i = 0; i < COR_VMES_BUFFER_SIZE; i++) {
+		corVmes[i] = 0;
+	}
+
+	for (int i = 0; i < COR_EPSILON_BUFFER_SIZE; i++) {
+		corEpsilon[i] = 0;
+	}
+	for (int i = 0; i < COR_VMI_BUFFER_SIZE; i++) {
+		corVmi[i] = 0;
+	}
+	for (int i = 0; i < COR_VCONTRE_BUFFER_SIZE; i++) {
+		corVcontre[i] = 0;
+	}
+	for (int i = 0; i < COR_VREFPRIME_BUFFER_SIZE; i++) {
+		corVrefprime[i] = 0;
+	}
 
 	/* USER CODE END 2 */
 
@@ -200,10 +235,6 @@ int main(void) {
 		// 1.1 Menu et navigation
 		Update_Display();
 
-		/* Test PWM */
-		pwm_pulse = 128; //(uint8_t)((sin(2*3.14159*sinFrequency*time) + 1 )*127);
-		time += 0.025;
-
 		/* Reading PDOs TOR inputs
 		 * Code :
 		 *  PDO = 0x000ABCD
@@ -217,29 +248,27 @@ int main(void) {
 		uint8_t PDO4 = HAL_GPIO_ReadPin(PDO4_GPIO_Port, PDO4_Pin);
 		uint8_t PDO5 = HAL_GPIO_ReadPin(PDO5_GPIO_Port, PDO5_Pin);
 		uint8_t PDO = (PDO5 << 3) | (PDO4 << 2) | (PDO3 << 1) | PDO2;
+
 		/* Decoding PDOs
 		 *  PDO2 = 5V
 		 *  PDO3 = 9V
 		 *  PDO4 = 12V
 		 *  PDO5 = 15V
 		 */
-		double Vref = 0;
 		switch (PDO) {
 		case 0b00001110:
-			Vref = 5;
+			voltage_ref = 5;
 			break;
 		case 0b00001101:
-			Vref = 9;
+			voltage_ref = 9;
 			break;
 		case 0b00001011:
-			Vref = 12;
+			voltage_ref = 12;
 			break;
 		case 0b00000111:
-			Vref = 15;
+			voltage_ref = 15;
 			break;
 		}
-
-
 
 		// TODO
 		// 4.1 Lecture PDO et asservissement
@@ -347,10 +376,57 @@ void Set_STUSB_Available_Profiles(uint8_t num_profiles) {
 
 /*** Voltage controller ***/
 
-int32_t Compute_control_input(int32_t yref, int32_t y) {
+int32_t Compute_control_input(int32_t Vref, int32_t Vmes) {
 	// TODO
 	// 3.2 Régulation
-	return 0;
+
+	// Shifting buffer
+	for (int i = COR_ALPHA_BUFFER_SIZE - 1; i > 0; i--) {
+		corAlpha[i] = corAlpha[i - 1];
+	}
+	for (int i = COR_VMES_BUFFER_SIZE - 1; i > 0; i--) {
+		corVmes[i] = corVmes[i - 1];
+	}
+	for (int i = COR_VREF_BUFFER_SIZE - 1; i > 0; i--) {
+		corVref[i] = corVref[i - 1];
+	}
+	for (int i = COR_EPSILON_BUFFER_SIZE - 1; i > 0; i--) {
+		corEpsilon[i] = corEpsilon[i - 1];
+	}
+	for (int i = COR_VMI_BUFFER_SIZE - 1; i > 0; i--) {
+		corVmi[i] = corVmi[i - 1];
+	}
+	for (int i = COR_VCONTRE_BUFFER_SIZE - 1; i > 0; i--) {
+		corVcontre[i] = corVcontre[i - 1];
+	}
+	for (int i = COR_VREFPRIME_BUFFER_SIZE - 1; i > 0; i--) {
+		corVrefprime[i] = corVrefprime[i - 1];
+	}
+
+	// Storing new voltage values
+	corVref[0] = Vref;
+	corVmes[0] = Vmes;
+
+	// Computing alpha
+	uint32_t pwm_result = 0;
+	/*
+	corAlpha[0] = Vref/10;
+	corVmi[0] = Hz[1] * corAlpha[1] + Hz[2] * corAlpha[2] - Hz[3] * corVmi[1]
+			- Hz[4] * corVmi[2];
+
+	 *
+	 *
+	corVcontre[0] = Fz[0] * (corVmes[0] - corVmi[0])
+			+ Fz[1] * (corVmes[1] - corVmi[1]) - Fz[3] * corVcontre[1]
+			- Fz[4] * corVcontre[2];
+	corVrefprime[0] = Gz[0] * corVref[0] + Gz[1] * corVref[1]
+			- Gz[3] * corVrefprime[1] - Gz[4] * corVrefprime[2];
+	corAlpha[0] = Cz[0] * (corVrefprime[0] - corVcontre[0])
+			+ Cz[1] * (corVrefprime[1] - corVcontre[1])
+			+ Cz[2] * (corVrefprime[2] - corVcontre[2]);
+*/
+	//pwm_result = (uint32_t)(corAlpha[0]*255.0);
+	return pwm_result;
 }
 
 /*******************************************************************
@@ -366,12 +442,14 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	voltage_out_ADC = adc_buf[0];
 	current_ADC = adc_buf[2];
 	// 2.2 Etalonage
-	voltage_in = ((double) voltage_in_ADC - 62) / 134.4;
-	voltage_out = ((double) voltage_out_ADC - 62) / 134.4;
+	voltage_in = ((float) voltage_in_ADC - 62) / 134.4;
+	voltage_out = ((float) voltage_out_ADC - 62) / 134.4;
 	current = current_ADC;
 
 	// TODO
 	// 3.1 Gestion PWM
+	//uint32_t controle_output = Compute_control_input(voltage_ref, voltage_out);
+	//pwm_pulse = (uint8_t)controle_output;
 
 	// TODO
 	// 4.2 Protection
@@ -466,7 +544,7 @@ void Update_Display(void) {
 		break;
 	case 10:
 		sprintf(title_str, "Page 2-1 ADC conv");
-		sprintf(line1_str, "Vi:%.2f (V)", (double) voltage_in);
+		sprintf(line1_str, "Vi:%.2f (V)", (float) voltage_in);
 		ssd1306_SetCursor(0, 0);
 		ssd1306_WriteString(title_str, Font_7x10, White);
 		ssd1306_SetCursor(0, 11);
@@ -475,7 +553,7 @@ void Update_Display(void) {
 		break;
 	case 11:
 		sprintf(title_str, "Page 2-2 ADC conv");
-		sprintf(line1_str, "Vo:%.2f (V)", (double) voltage_out);
+		sprintf(line1_str, "Vo:%.2f (V)", (float) voltage_out);
 		ssd1306_SetCursor(0, 0);
 		ssd1306_WriteString(title_str, Font_7x10, White);
 		ssd1306_SetCursor(0, 11);
