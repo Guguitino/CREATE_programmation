@@ -87,26 +87,33 @@ uint32_t current_ADC = 0;
 float voltage_in = 0;
 float voltage_out = 0;
 float current = 0;
-float voltage_ref = 0;
+uint32_t voltage_ref = 0;
 
 uint16_t adc_buf[ADC_BUF_LEN];
 
-float corAlpha[COR_ALPHA_BUFFER_SIZE];
-float corVref[COR_VMES_BUFFER_SIZE];
-float corVmes[COR_VREF_BUFFER_SIZE];
+uint32_t corAlpha[COR_ALPHA_BUFFER_SIZE];
+uint32_t corVref[COR_VMES_BUFFER_SIZE];
+uint32_t corVmes[COR_VREF_BUFFER_SIZE];
 
 //float Hz[] = { 0, 35.28, 18.32, 0.9834, 0.2503 };
 //float Gz[] = { 0.09683, 0.07675, 0, -1.326, 0.4996 };
 //float Fz[] = { 1.284, 0.5245, 0, 0.6743, 0.1345 };
 //float Cz[] = { 0.01865, 0.01834, 0.004668, 0, 0 };
 double PIDFz[] = { 0.003238, 0.003184, 0.0008103, -1.44, 0.4403 };
-#define P0 0.003238f
-#define P1 0.003184f
-#define P2 0.0008103f
-#define P3 -1.44f
-#define P4 0.4403f
+#define P0f 0.003238f
+#define P1f 0.003184f
+#define P2f 0.0008103f
+#define P3f -1.44f
+#define P4f 0.4403f
+
+uint32_t P0 = 212;
+uint32_t P1 = 209;
+uint32_t P2 = 53;
+uint32_t P3 = 94372;
+uint32_t P4 = 28856;
 
 uint8_t ComputeControle = 0;
+uint8_t BoucleFermee = 0;
 
 // Tramage (dithering)
 uint16_t pwm_buffer[PWM_BUFFER_SIZE];
@@ -127,7 +134,7 @@ void Test_STUSB_I2C(void);
 void Set_STUSB_Available_Profiles(uint8_t num_profiles);
 
 // Voltage controller
-int32_t Compute_control_input(int32_t Vref, int32_t Vmes);
+uint8_t Compute_control_input(uint32_t Vref, uint32_t Vmes);
 void TransferComplete(DMA_HandleTypeDef *hdma);
 void TransferHalfComplete(DMA_HandleTypeDef *hdma);
 
@@ -261,24 +268,22 @@ int main(void) {
 			break;
 		}
 		/*
-		if (ComputeControle) {
-			ComputeControle = 0;
+		 if (ComputeControle) {
+		 ComputeControle = 0;
 
-			uint32_t controle = Compute_control_input(voltage_ref, voltage_out);
-			pwm_pulse = (uint8_t) controle;
+		 uint32_t controle = Compute_control_input(voltage_ref, voltage_out);
+		 pwm_pulse = (uint8_t) controle;
 
-			if (ComputeControle) {
-				printf("Not real time");
-			}
-		}
-		*/
+		 if (ComputeControle) {
+		 printf("Not real time");
+		 }
+		 }
+		 */
 
 		// TODO
 		// 4.1 Lecture PDO et asservissement
-
 		// TODO
 		// 2.3 Calcul énergie et Puissance
-
 		// Delay
 		HAL_Delay(25);
 	}
@@ -379,49 +384,62 @@ void Set_STUSB_Available_Profiles(uint8_t num_profiles) {
 
 /*** Voltage controller ***/
 
-int32_t Compute_control_input(int32_t Vref, int32_t Vmes) {
-	// TODO
-	// 3.2 Régulation
+uint8_t Compute_control_input(uint32_t Vref, uint32_t Vmes) {
 
-	// Shifting buffer
-	corAlpha[2] = corAlpha[1];
-	corAlpha[1] = corAlpha[0];
-	corVmes[2] = corVmes[1];
-	corVmes[1] = corVmes[0];
-	corVref[2] = corVref[1];
-	corVref[1] = corVref[0];
+	uint8_t pwm_result = 0;
+	if(BoucleFermee)
+	{
+		// TODO
+			// 3.2 Régulation
 
-	// Storing new voltage values
-	corVref[0] = Vref;
-	corVmes[0] = Vmes;
+			// Shifting buffer
+			corAlpha[2] = corAlpha[1];
+			corAlpha[1] = corAlpha[0];
+			corVmes[2] = corVmes[1];
+			corVmes[1] = corVmes[0];
+			corVref[2] = corVref[1];
+			corVref[1] = corVref[0];
 
-	// Computing alpha
-	uint32_t pwm_result = 0;
+			// Storing new voltage valuesé
+			corVref[0] = Vref;
+			corVmes[0] = Vmes;
 
-	corAlpha[0] = P0 * (corVref[0] - corVmes[0])
-			+ P1 * (corVref[1] - corVmes[1])
-			+ P2 * (corVref[2] - corVmes[2]) - P3 * corAlpha[1]
-			- P4 * corAlpha[2];
-	/*
-	 corVmi[0] = Hz[1] * corAlpha[1] + Hz[2] * corAlpha[2] - Hz[3] * corVmi[1]
-	 - Hz[4] * corVmi[2];
+			// Computing alpha
+			uint64_t eps0 = (uint64_t) ((corVref[0] - corVmes[0]) * 65536.0);
+			uint64_t eps1 = (uint64_t) ((corVref[1] - corVmes[1]) * 65536.0);
+			uint64_t eps2 = (uint64_t) ((corVref[2] - corVmes[2]) * 65536.0);
 
-	 corVcontre[0] = Fz[0] * (corVmes[0] - corVmi[0])
-	 + Fz[1] * (corVmes[1] - corVmi[1]) - Fz[3] * corVcontre[1]
-	 - Fz[4] * corVcontre[2];
+			uint64_t alpha1 = (uint64_t) ((corAlpha[1]) * 65536.0);
+			uint64_t alpha2 = (uint64_t) ((corAlpha[2]) * 65536.0);
 
-	 corVrefprime[0] = Gz[0] * corVref[0] + Gz[1] * corVref[1]
-	 - Gz[3] * corVrefprime[1] - Gz[4] * corVrefprime[2];
+			uint64_t newAlpha = (P0 * eps0 + P1 * eps1 + P2 * eps2 + P3 * alpha1
+					- P4 * alpha2) >> 16;
+			/*
+			 corVmi[0] = Hz[1] * corAlpha[1] + Hz[2] * corAlpha[2] - Hz[3] * corVmi[1]
+			 - Hz[4] * corVmi[2];
 
-	 corAlpha[0] = Cz[0] * (corVrefprime[0] - corVcontre[0])
-	 + Cz[1] * (corVrefprime[1] - corVcontre[1])
-	 + Cz[2] * (corVrefprime[2] - corVcontre[2]);
-	 */
-	pwm_result = (uint32_t) (corAlpha[0] * 255.0);
-	if (pwm_result > 255)
-		pwm_result = 255;
-	if (pwm_result < 0)
-		pwm_result = 0;
+			 corVcontre[0] = Fz[0] * (corVmes[0] - corVmi[0])
+			 + Fz[1] * (corVmes[1] - corVmi[1]) - Fz[3] * corVcontre[1]
+			 - Fz[4] * corVcontre[2];
+
+			 corVrefprime[0] = Gz[0] * corVref[0] + Gz[1] * corVref[1]
+			 - Gz[3] * corVrefprime[1] - Gz[4] * corVrefprime[2];
+
+			 corAlpha[0] = Cz[0] * (corVrefprime[0] - corVcontre[0])
+			 + Cz[1] * (corVrefprime[1] - corVcontre[1])
+			 + Cz[2] * (corVrefprime[2] - corVcontre[2]);
+			 */
+			corAlpha[0] = (float) newAlpha / 65536.0;
+
+			pwm_result = (uint8_t) (corAlpha[0] * 255.0);
+			if (pwm_result > 255)
+				pwm_result = 255;
+			if (pwm_result < 0)
+				pwm_result = 0;
+	}else{
+		pwm_result = (uint8_t)((voltage_ref/voltage_in)*255.0);
+	}
+
 	return pwm_result;
 }
 
@@ -445,8 +463,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	// TODO
 	// 3.1 Gestion PWM
 	//ComputeControle = 1;
-	uint32_t controle = Compute_control_input(voltage_ref, voltage_out);
-	pwm_pulse = (uint8_t) controle;
+	pwm_pulse = Compute_control_input(voltage_ref, voltage_out);
 	// TODO
 	// 4.2 Protection
 
@@ -567,31 +584,40 @@ void Update_Display(void) {
 		break;
 	case 20:
 		sprintf(title_str, "Page 3");
+		if(BoucleFermee)
+		{
+			sprintf(line1_str, "Fonctionnement:BF");
+		}else{
+			sprintf(line1_str, "Fonctionnement:BO");
+		}
+		sprintf(line2_str, "Switch by pushing");
 		ssd1306_SetCursor(0, 0);
 		ssd1306_WriteString(title_str, Font_7x10, White);
 		ssd1306_SetCursor(0, 11);
+		ssd1306_WriteString(line1_str, Font_7x10, White);
+		ssd1306_SetCursor(0, 22);
 		ssd1306_WriteString(line2_str, Font_7x10, White);
 		ssd1306_UpdateScreen();
 		break;
 	}
 
 	//State machine actions
-	switch (ecran) {
-	case 10:
-		if (prev_btn < btn) {
+	if (prev_btn < btn) {
+		switch (ecran) {
+		case 10:
 			ecran++;
-		}
-		break;
-	case 11:
-		if (prev_btn < btn) {
+			break;
+		case 11:
 			ecran++;
-		}
-		break;
-	case 12:
-		if (prev_btn < btn) {
+			break;
+		case 12:
 			ecran = 10;
+			break;
+		case 20:
+			BoucleFermee = !BoucleFermee;
+			break;
 		}
-		break;
+
 	}
 }
 
