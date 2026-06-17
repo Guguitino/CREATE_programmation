@@ -57,6 +57,38 @@
 
 #define NB_ECRAN 3
 
+
+//float Hz[] = { 0, 35.28, 18.32, 0.9834, 0.2503 };
+#define Hz0 0f
+#define Hz1 35.28f
+#define Hz2 18.32f
+#define Hz3 0.9834f
+#define Hz4 0.2503f
+
+
+//float Gz[] = { 0.09683, 0.07675, 0, -1.326, 0.4996 };
+#define Gz0 0.09683f
+#define Gz1 0.07675f
+#define Gz2 0f
+#define Gz3 -1.326f
+#define Gz4 0.4996f
+
+
+//float Fz[] = { 1.284, 0.5245, 0, 0.6743, 0.1345 };
+#define Fz0 1.284f
+#define Fz1 0.5245f
+#define Fz2 0f
+#define Fz3 0.6743f
+#define Fz4 0.1345f
+
+//float Cz[] = { 0.01865, 0.01834, 0.004668, 0, 0 };
+#define Cz0 0.01865f
+#define Cz1 0.01834f
+#define Cz2 0.004668f
+#define Cz3 0f
+#define Cz4 0f
+
+
 enum rotary_direction {
 	DIRECTION_NONE, DIRECTION_CW, DIRECTION_CCW, NUM_OF_DIRECTIONS
 };
@@ -91,18 +123,76 @@ float voltage_ref = 0;
 
 uint16_t adc_buf[ADC_BUF_LEN];
 
-float corAlpha[COR_ALPHA_BUFFER_SIZE];
+/*float corAlpha[COR_ALPHA_BUFFER_SIZE];
 float corVref[COR_VMES_BUFFER_SIZE];
 float corVmi[COR_VMI_BUFFER_SIZE];
 float corVmes[COR_VREF_BUFFER_SIZE];
 float corVcontre[COR_VCONTRE_BUFFER_SIZE];
 float corVrefprime[COR_VREFPRIME_BUFFER_SIZE];
-float corEpsilon[COR_EPSILON_BUFFER_SIZE];
+float corEpsilon[COR_EPSILON_BUFFER_SIZE];*/
 
-float Hz[] = { 0, 35.28, 18.32, 0.9834, 0.2503 };
-float Gz[] = { 0.09683, 0.07675, 0, -1.326, 0.4996 };
-float Fz[] = { 1.284, 0.5245, 0, 0.6743, 0.1345 };
-float Cz[] = { 0.01865, 0.01834, 0.004668, 0, 0 };
+
+float corAlpha = 0;
+float corAlpha_1 = 0;
+float corAlpha_2 = 0;
+
+float corVref = 0;
+float corVref_1 = 0;
+float corVref_2= 0;
+
+float corVmi = 0;
+float corVmi_1 = 0;
+float corVmi_2 = 0;
+
+float corVmes = 0;
+float corVmes_1 = 0;
+float corVmes_2 = 0;
+
+float corVcontre = 0;
+float corVcontre_1 = 0;
+float corVcontre_2 = 0;
+
+float corVrefprime = 0;
+float corVrefprime_1 = 0;
+float corVrefprime_2 = 0;
+
+float corEpsilon = 0;
+float corEpsilon_1 = 0;
+float corEpsilon_2 = 0;
+
+
+
+
+//float Hz[] = { 0, 35.28, 18.32, 0.9834, 0.2503 };
+#define Hz0 0f
+#define Hz1 35.28f
+#define Hz2 18.32f
+#define Hz3 0.9834f
+#define Hz4 0.2503f
+
+
+//float Gz[] = { 0.09683, 0.07675, 0, -1.326, 0.4996 };
+#define Gz0 0.09683f
+#define Gz1 0.07675f
+#define Gz2 0f
+#define Gz3 -1.326f
+#define Gz4 0.4996f
+
+
+//float Fz[] = { 1.284, 0.5245, 0, 0.6743, 0.1345 };
+#define Fz0 1.284f
+#define Fz1 0.5245f
+#define Fz2 0f
+#define Fz3 0.6743f
+#define Fz4 0.1345f
+
+//float Cz[] = { 0.01865, 0.01834, 0.004668, 0, 0 };
+#define Cz0 0.01865f
+#define Cz1 0.01834f
+#define Cz2 0.004668f
+#define Cz3 0f
+#define Cz4 0f
+
 
 // Tramage (dithering)
 uint16_t pwm_buffer[PWM_BUFFER_SIZE];
@@ -123,7 +213,7 @@ void Test_STUSB_I2C(void);
 void Set_STUSB_Available_Profiles(uint8_t num_profiles);
 
 // Voltage controller
-int32_t Compute_control_input(int32_t Vref, int32_t Vmes);
+int32_t Compute_control_input(float Vref, float Vmes);
 void TransferComplete(DMA_HandleTypeDef *hdma);
 void TransferHalfComplete(DMA_HandleTypeDef *hdma);
 
@@ -194,30 +284,6 @@ int main(void) {
 
 	//Enable MP8040 pin PA10 (activation V sortie )
 	HAL_GPIO_WritePin(SHDN_GPIO_Port, SHDN_Pin, 0);
-
-	for (int i = 0; i < COR_ALPHA_BUFFER_SIZE; i++) {
-		corAlpha[i] = 0;
-	}
-	for (int i = 0; i < COR_VREF_BUFFER_SIZE; i++) {
-		corVref[i] = 0;
-	}
-
-	for (int i = 0; i < COR_VMES_BUFFER_SIZE; i++) {
-		corVmes[i] = 0;
-	}
-
-	for (int i = 0; i < COR_EPSILON_BUFFER_SIZE; i++) {
-		corEpsilon[i] = 0;
-	}
-	for (int i = 0; i < COR_VMI_BUFFER_SIZE; i++) {
-		corVmi[i] = 0;
-	}
-	for (int i = 0; i < COR_VCONTRE_BUFFER_SIZE; i++) {
-		corVcontre[i] = 0;
-	}
-	for (int i = 0; i < COR_VREFPRIME_BUFFER_SIZE; i++) {
-		corVrefprime[i] = 0;
-	}
 
 	/* USER CODE END 2 */
 
@@ -376,56 +442,59 @@ void Set_STUSB_Available_Profiles(uint8_t num_profiles) {
 
 /*** Voltage controller ***/
 
-int32_t Compute_control_input(int32_t Vref, int32_t Vmes) {
+int32_t Compute_control_input(float Vref, float Vmes) {
 	// TODO
 	// 3.2 Régulation
 
-	// Shifting buffer
-	for (int i = COR_ALPHA_BUFFER_SIZE - 1; i > 0; i--) {
-		corAlpha[i] = corAlpha[i - 1];
-	}
-	for (int i = COR_VMES_BUFFER_SIZE - 1; i > 0; i--) {
-		corVmes[i] = corVmes[i - 1];
-	}
-	for (int i = COR_VREF_BUFFER_SIZE - 1; i > 0; i--) {
-		corVref[i] = corVref[i - 1];
-	}
-	for (int i = COR_EPSILON_BUFFER_SIZE - 1; i > 0; i--) {
-		corEpsilon[i] = corEpsilon[i - 1];
-	}
-	for (int i = COR_VMI_BUFFER_SIZE - 1; i > 0; i--) {
-		corVmi[i] = corVmi[i - 1];
-	}
-	for (int i = COR_VCONTRE_BUFFER_SIZE - 1; i > 0; i--) {
-		corVcontre[i] = corVcontre[i - 1];
-	}
-	for (int i = COR_VREFPRIME_BUFFER_SIZE - 1; i > 0; i--) {
-		corVrefprime[i] = corVrefprime[i - 1];
-	}
+	// Shifting
+	corAlpha_2 = corAlpha_1;
+	corAlpha_1 = corAlpha;
+
+	corVmes_2 = corVmes_1;
+	corVmes_1 = corVmes;
+
+	corVref_2 = corVref_1;
+	corVref_1 = corVref;
+
+	corEpsilon_2 = corEpsilon_1;
+	corEpsilon_1 = corEpsilon;
+
+	corVmi_2 = corVmi_1;
+	corVmi_1 = corVmi;
+
+	corVcontre_2 = corVcontre_1;
+	corVcontre_1 = corVcontre;
+
+	corVrefprime_2 = corVrefprime_1;
+	corVrefprime_1 = corVrefprime;
+
 
 	// Storing new voltage values
-	corVref[0] = Vref;
-	corVmes[0] = Vmes;
+	corVref = Vref;
+	corVmes = Vmes;
 
 	// Computing alpha
 	uint32_t pwm_result = 0;
-	/*
-	corAlpha[0] = Vref/10;
-	corVmi[0] = Hz[1] * corAlpha[1] + Hz[2] * corAlpha[2] - Hz[3] * corVmi[1]
-			- Hz[4] * corVmi[2];
 
-	 *
-	 *
-	corVcontre[0] = Fz[0] * (corVmes[0] - corVmi[0])
-			+ Fz[1] * (corVmes[1] - corVmi[1]) - Fz[3] * corVcontre[1]
-			- Fz[4] * corVcontre[2];
-	corVrefprime[0] = Gz[0] * corVref[0] + Gz[1] * corVref[1]
-			- Gz[3] * corVrefprime[1] - Gz[4] * corVrefprime[2];
-	corAlpha[0] = Cz[0] * (corVrefprime[0] - corVcontre[0])
-			+ Cz[1] * (corVrefprime[1] - corVcontre[1])
-			+ Cz[2] * (corVrefprime[2] - corVcontre[2]);
-*/
-	//pwm_result = (uint32_t)(corAlpha[0]*255.0);
+	//VERIFIER QUE C'EST BIEN MAINTENANT QU'ON DOIT FAIRE CA !
+
+	//corAlpha = Vref/10;//   !!! pk
+
+	corVmi = Hz1 * corAlpha_1 + Hz2 * corAlpha_2 - Hz3 * corVmi_1
+			- Hz4 * corVmi_2;
+
+	corVcontre = Fz0 * (corVmes - corVmi)
+			+ Fz1 * (corVmes_1 - corVmi_1) - Fz3 * corVcontre_1
+			- Fz4 * corVcontre_2;
+
+	corVrefprime = Gz0 * corVref + Gz1 * corVref_1
+			- Gz3 * corVrefprime_1 - Gz4 * corVrefprime_2;
+
+	corAlpha = Cz0 * (corVrefprime - corVcontre)
+			+ Cz1 * (corVrefprime_1 - corVcontre_1)
+			+ Cz2 * (corVrefprime_2 - corVcontre_2);
+
+	pwm_result = (uint32_t)(corAlpha*255.0);
 	return pwm_result;
 }
 
@@ -448,8 +517,8 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 
 	// TODO
 	// 3.1 Gestion PWM
-	//uint32_t controle_output = Compute_control_input(voltage_ref, voltage_out);
-	//pwm_pulse = (uint8_t)controle_output;
+	uint32_t controle_output = Compute_control_input(voltage_ref, voltage_out);
+	pwm_pulse = (uint8_t)controle_output;
 
 	// TODO
 	// 4.2 Protection
