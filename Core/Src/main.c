@@ -288,7 +288,7 @@ int main(void) {
 		// TODO
 		// 2.3 Calcul énergie et Puissance
 		power = voltage_out * current;//(W)
-		energy = power * 0.025;		//(J)
+		energy += power * 0.025;		//(J)
 
 		// Delay
 		HAL_Delay(25);
@@ -465,7 +465,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	// 2.2 Etalonage
 	voltage_in = ((float) voltage_in_ADC - 62) / 134.4;
 	voltage_out = ((float) voltage_out_ADC - 62) / 134.4;
-	current = ((float)current_ADC*-0.0032)+13.105;
+	current = ((float)current_ADC*-0.003424)+14.02128;
 
 
 	// TODO
