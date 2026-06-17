@@ -456,7 +456,11 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	// 3.1 Gestion PWM
 	//ComputeControle = 1;
 	//uint32_t controle = Compute_control_input(voltage_ref, voltage_out);
-	pwm_pulse = (uint8_t)(voltage_ref/voltage_in*255.0);//(uint8_t) controle;
+
+	uint64_t newPulse = ( ((uint64_t)(voltage_ref*SCALE)<<32) / ((uint64_t)(voltage_in*SCALE)) )>>32;	//= pulse * SCALE
+
+
+	pwm_pulse =125;// (uint8_t)(newPulse/(SCALE/255));//(uint8_t) controle;
 	// TODO
 	// 4.2 Protection
 
